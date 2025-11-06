@@ -3,6 +3,9 @@ from tkinter import ttk
 import json
 from datetime import datetime
 from tkinter import messagebox
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 # Calculations/logic by Luis Valdes
 
@@ -100,7 +103,7 @@ def budget():
         }
         tax_rate = tax_rates.get(state, 0.07)
         taxes = budget_income * tax_rate
-#expenses
+#expenses with advice
         expenses_total = {
             "Housing": float(expense_entries["housing"].get() or 0),
             "Food": float(expense_entries["food"].get() or 0),
@@ -113,10 +116,12 @@ def budget():
         
         total_expenses = sum(expenses_total.values()) + taxes
         income_after_expenses = weekly_income - total_expenses
-#advice
+
         if income_after_expenses < 0:
-            messagebox.showwarning("Budget Warning", "Your expenses exceed your income! Consider reducing expenses.")
-        
+            messagebox.showwarning("Budget Warning", "Your expenses are too high, consider cutting down on non-essential things.")
+        elif income_after_expenses > 0:
+            messagebox.showinfo("Budget Info", "Good job keep it up and consider investment options.")
+            
         budget_need = weekly_income * 0.5
         want_budget = weekly_income * 0.3
         savings_budget = weekly_income * 0.2
@@ -133,7 +138,7 @@ def budget():
         )
         result_label.config(text=result_text, foreground="#FFD54F")
 
-        show_chart(expenses_total)
+        customizable_pie_chart(chart_frame, expenses_total, total_income=budget_income)
 
     except ValueError:
         messagebox.showerror("Input Error", "Please make sure all things are filled out correctly!")
@@ -145,10 +150,93 @@ def budget():
 
 
 # Visualization by Lars Fahnemann
+def customizable_pie_chart(parent, expenses_total, total_income=1000,
+                           colors=None, title="Monthly Budget Breakdown",
+                           show_percent=True, show_values=True,
+                           explode=None, fig_bg="#1A1A1A", plot_bg="#000000"):
+    # Clear previous chart
+    for widget in parent.winfo_children():
+        widget.destroy()
+
+    labels, values = [], []
+    for k, v in expenses_total.items():
+        try:
+            v = float(v or 0)
+        except:
+            v = 0
+        if v > 0:
+            labels.append(k)
+            values.append(v)
+
+    if not values:
+        tk.Label(parent, text="No expenses to chart", fg="#777777",
+                 bg=fig_bg, font=("Segoe UI", 11, "italic")).pack(expand=True)
+        return
+
+    if colors is None:
+        base_colors = ["#FFD54F", "#4FC3F7", "#81C784", "#E57373",
+                       "#BA68C8", "#FFB74D", "#64B5F6"]
+        colors = [base_colors[i % len(base_colors)] for i in range(len(values))]
+
+    if explode is None:
+        explode = [0.04] * len(values)
+
+    def make_autopct(values):
+        def autopct(pct):
+            total = sum(values)
+            val = total * pct / 100.0
+            if show_percent and show_values:
+                return f"{pct:.1f}%\n${val:,.0f}"
+            elif show_values:
+                return f"${val:,.0f}"
+            elif show_percent:
+                return f"{pct:.1f}%"
+            else:
+                return ""
+        return autopct
+
+    
+    fig = Figure(figsize=(4.2, 3.7), facecolor=fig_bg)
+    ax = fig.add_subplot(111)
+    ax.set_facecolor(plot_bg)
+
+    wedges, texts, autotexts = ax.pie(
+        values,
+        labels=labels,
+        colors=colors,
+        autopct=make_autopct(values),
+        startangle=90,
+        explode=explode,
+        shadow=False,
+        pctdistance=0.8,
+        labeldistance=1.1
+    )
+
+    for t in texts:
+        t.set_color("#E0E0E0")
+        t.set_fontsize(8)
+    for t in autotexts:
+        t.set_color("#000000")
+        t.set_fontsize(7)
+        t.set_fontweight("bold")
+
+    
+    ax.set_title(f"{title}\nTotal: ${total_income:,.0f}",
+                 color="#FFD54F", fontsize=11, pad=25, loc="center")
+
+    
+    fig.tight_layout(pad=3)
+
+    ax.axis("equal")
+
+    
+    canvas = FigureCanvasTkAgg(fig, master=parent)
+    canvas.draw()
+    canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
 
 
 #  DATA STORAGE FUNCTIONS (by james)) 
-    DATA_FILE = "budget_data.json"
+DATA_FILE = "budget_data.json"
 
 def save_data():
     """Save all input fields and settings to a JSON file."""
@@ -195,7 +283,7 @@ def load_data():
 
 
 
-#Source For Tkinter Layout and Styling by ChatGPT
+#Source For Tkinter Layout and Styling by ChatGPT and tweaked by all team members
 # ----------------------------
 #  APP SETUP
 # ----------------------------
@@ -347,9 +435,16 @@ chart_canvas.pack(fill="both", expand=True)
 result_frame = ttk.Frame(right_panel, style="Card.TFrame", padding=10)
 result_frame.grid(row=1, column=0, sticky="nsew")
 ttk.Label(result_frame, text="Results", style="Header.TLabel").pack(pady=(0, 8))
-result_label = ttk.Label(result_frame, text="Budget summary will appear here",
-                         font=("Segoe UI", 10, "bold"),
-                         foreground="#A0A0A0", background=CARD_BG, justify="left")
+result_label = tk.Label(
+    result_frame,
+    text="Budget summary will appear here...",
+    font=("Segoe UI", 10),
+    fg="#FFD54F",
+    bg=CARD_BG,
+    justify="left",
+    wraplength=350, 
+    anchor="nw"
+)
 result_label.pack(fill="both", expand=True, padx=5, pady=5)
 
 # ----------------------------
